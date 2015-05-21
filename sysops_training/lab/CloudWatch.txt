@@ -1,0 +1,136 @@
+System Operations - Lab 4: Monitoring with CloudWatch (Linux) - 2.1
+==================================================================================================================
+
+Using this command reference. 
+
+==================================================================================================================
+
+1. Locate the section you need. Each section in this file matches a section in the lab instructions.
+
+
+2. Replace items in angle brackets - [ ] - with appropriate values. For example, in this command you would replace the value - [JobFlowID] - (including the brackets) with the parameter indicated in the lab instructions: 
+
+   elastic-mapreduce --list [JobFlowID]. 
+
+   You can also use find and replace to change bracketed parameters in bulk.
+
+3. Do NOT enable the Word Wrap feature in Windows Notepad or the text editor you use to view this file.
+
+
+
+++++1. Create Your Web Server++++
+
+==================================================================================================================
+1.1 Upload CloudWatch Logs Configuration File 
+==================================================================================================================
+
+1.1.6 Save CloudWatch Logs configuration file to text file
+
+[general]
+state_file = /var/awslogs/state/agent-state
+ 
+[HttpAccessLog]
+file = /var/log/httpd/access_log
+log_group_name = HttpAccessLog
+log_stream_name = {instance_id}
+datetime_format = %b %d %H:%M:%S
+
+[HttpErrorLog]
+file = /var/log/httpd/error_log
+log_group_name = HttpErrorLog
+log_stream_name = {instance_id}
+datetime_format = %b %d %H:%M:%S
+
+
+==================================================================================================================
+1.2 Create IAM Policy 
+==================================================================================================================
+
+1.2.5 Use the following custom policy
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "autoscaling:Describe*",
+        "cloudwatch:*",
+        "logs:*",
+        "sns:*"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }, 
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:*",
+        "s3:GetObject"
+      ],
+      "Resource": [
+        "arn:aws:logs:*:*:*",
+        "arn:aws:s3:::[s3-bucket-name]/*"
+      ]
+    }
+  ]
+}
+
+==================================================================================================================
+1.5 Create Web Server
+==================================================================================================================
+
+1.5.3 Edit the user data script
+
+#!/bin/bash
+yum update -y --security
+yum -y install httpd php
+chkconfig httpd on
+/etc/init.d/httpd start
+cd /var/www/html
+
+wget https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py
+chmod +x ./awslogs-agent-setup.py
+
+./awslogs-agent-setup.py -n -r [region] -c s3://[s3-bucket-name]/cloudwatch-logs-agent-config.txt
+
+
+++++2. Define CloudWatch Log Metrics++++
+
+==================================================================================================================
+2.2 Create a CloudWatch Logs-Derived Metric 
+==================================================================================================================
+
+2.2.4 Paste the following filter pattern into the Filter Pattern text box
+
+[ip, id, user, timestamp, request, status_code=404, size]
+
+
+++++3. Generate a Custom Metric from an Instance++++
+
+==================================================================================================================
+3.3 Generate HTTPd Memory Usage Metric
+==================================================================================================================
+
+3.3.1 Obtain current memory utilization of all HTTPd instances
+
+mem=$(ps -C httpd -O rss | gawk '{ count ++; sum += $2 }; END {count --; print sum/1024 ;};')
+
+3.3.2 Verify $mem
+
+echo $mem
+
+3.3.3 Retrieve the instance ID of the current instance
+
+instance_id=$(curl -s -w '\n' http://169.254.169.254/latest/meta-data/instance-id)
+
+3.3.4 Verify $instance_id
+
+echo $instance_id
+
+3.3.5 Define your custom metric
+
+aws cloudwatch put-metric-data --namespace HttpServerMetrics --metric-name HttpServerMemUtilization --dimension InstanceId=$instance_id --value $mem --unit "Megabytes"
+
+
+
+© 2013, 2014 Amazon Web Services, Inc. or its affiliates. All rights reserved.

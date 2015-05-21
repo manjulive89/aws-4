@@ -1,0 +1,153 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+	"Description" : "System Operations for AWS v2.1: Lab 4 - Monitoring with CloudWatch (Linux)",
+	"Parameters" : {
+		"VPCCIDR" : {
+			"Description" : "CIDR Block for VPC",
+			"Type" : "String",
+			"Default" : "10.5.0.0/16",
+			"AllowedValues" : ["10.5.0.0/16"]
+		},
+		"PublicSubnet1Param" : {
+			"Description" : "Public Subnet 1",
+			"Type" : "String",
+			"Default" : "10.5.0.0/24",
+			"AllowedValues" : ["10.5.0.0/24"]
+		},
+		"KeyName" : {
+			"Type" : "String",
+			"Description" : "Keyname for the keypair that Qwiklab will use to launch EC2 instances",
+			"Default" : "default-lab-key"
+		}
+	},
+	"Mappings" : {
+		"AmazonLinuxAMI" : {
+			"us-east-1": {
+			        "AMI": "ami-b66ed3de"
+			      },
+			"us-west-1": {
+			        "AMI": "ami-4b6f650e"
+			      },
+			"us-west-2": {
+			        "AMI": "ami-b5a7ea85"
+			      },
+			"eu-west-1": {
+			        "AMI": "ami-6e7bd919"
+			      },
+			"sa-east-1": {
+			        "AMI": "ami-8737829a"
+			      },
+			"ap-southeast-1": {
+			        "AMI": "ami-ac5c7afe"
+			      },
+			"ap-southeast-2": {
+			        "AMI": "ami-63f79559"
+			      },
+			"ap-northeast-1": {
+			        "AMI": "ami-4985b048"
+			}
+		}
+	},
+	"Resources" : {  
+		"VPC" : {
+			"Type" : "AWS::EC2::VPC",
+			"Properties" : {
+				"CidrBlock" : {
+					"Ref" : "VPCCIDR"
+				},
+				"EnableDnsSupport" : "true",
+				"EnableDnsHostnames" : "true",
+				"Tags" : [{
+						"Key" : "VPC",
+						"Value" : "LAB"
+					}, {
+						"Key" : "Name",
+						"Value" : "Lab VPC"
+					}
+				]
+			}
+		},
+		"InternetGateway" : {
+			"Type" : "AWS::EC2::InternetGateway",
+			"DependsOn" : "VPC"
+		},
+		"AttachGateway" : {
+			"Type" : "AWS::EC2::VPCGatewayAttachment",
+			"DependsOn" : ["VPC", "InternetGateway"],
+			"Properties" : {
+				"VpcId" : {
+					"Ref" : "VPC"
+				},
+				"InternetGatewayId" : {
+					"Ref" : "InternetGateway"
+				}
+			}
+		},
+		"PublicSubnet1" : {
+			"Type" : "AWS::EC2::Subnet",
+			"DependsOn" : "AttachGateway",
+			"Properties" : {
+				"VpcId" : {
+					"Ref" : "VPC"
+				},
+				"CidrBlock" : {
+					"Ref" : "PublicSubnet1Param"
+				},
+				"AvailabilityZone" : {
+					"Fn::Select" : [
+						"0", {
+							"Fn::GetAZs" : ""
+						}
+					]
+				},
+				"Tags" : [{
+						"Key" : "Name",
+						"Value" : "Public Subnet 1"
+					}
+				]
+			}
+		},
+		"PublicRouteTable" : {
+			"Type" : "AWS::EC2::RouteTable",
+			"DependsOn" : ["VPC", "AttachGateway"],
+			"Properties" : {
+				"VpcId" : {
+					"Ref" : "VPC"
+				},
+				"Tags" : [{
+						"Key" : "Name",
+						"Value" : "Public"
+					}
+				]
+			}
+		},
+		"PublicRoute" : {
+			"Type" : "AWS::EC2::Route",
+			"DependsOn" : ["PublicRouteTable", "AttachGateway"],
+			"Properties" : {
+				"RouteTableId" : {
+					"Ref" : "PublicRouteTable"
+				},
+				"DestinationCidrBlock" : "0.0.0.0/0",
+				"GatewayId" : {
+					"Ref" : "InternetGateway"
+				}
+			}
+		},
+		"PublicSubnet1RouteTableAssociation" : {
+			"Type" : "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn" : ["PublicRouteTable", "PublicSubnet1", "AttachGateway"],
+			"Properties" : {
+				"SubnetId" : {
+					"Ref" : "PublicSubnet1"
+				},
+				"RouteTableId" : {
+					"Ref" : "PublicRouteTable"
+				}
+			}
+		}
+	},
+	"Outputs" : {
+
+	}
+}

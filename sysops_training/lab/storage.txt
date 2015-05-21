@@ -1,0 +1,240 @@
+System Operations - Lab 3: Managing Storage in AWS (Linux) - 2.1
+==================================================================================================================
+
+Using this command reference. 
+
+==================================================================================================================
+
+1. Locate the section you need. Each section in this file matches a section in the lab instructions.
+
+
+2. Replace items in angle brackets - [ ] - with appropriate values. For example, in this command you would replace the value - [JobFlowID] - (including the brackets) with the parameter indicated in the lab instructions: 
+
+   elastic-mapreduce --list [JobFlowID]. 
+
+   You can also use find and replace to change bracketed parameters in bulk.
+
+3. Do NOT enable the Word Wrap feature in Windows Notepad or the text editor you use to view this file.
+
+
+
+++++1. Configuring a New Instance++++
+
+
+==================================================================================================================
+1.5 Create Amazon EC2 Instance
+==================================================================================================================
+
+1.5.8 Paste text into User data field
+
+#!/bin/bash
+yum update -y
+
+
+++++2. Taking Snapshots of Your Instance++++
+
+
+==================================================================================================================
+2.1 Take an Initial Snapshot
+==================================================================================================================
+
+2.1.5 Obtain a full description of the Processor instance
+
+aws ec2 describe-instances --filter 'Name=tag:Name,Values=Processor'
+
+2.1.6 Refine description to include only VolumeId of Amazon EBS volume
+
+aws ec2 describe-instances --filter 'Name=tag:Name,Values=Processor' --query 'Reservations[0].Instances[0].BlockDeviceMappings[0].Ebs.{VolumeId:VolumeId}'
+
+2.1.7 Obtain instance ID of Processor instance
+
+aws ec2 describe-instances --filters 'Name=tag:Name,Values=Processor' --query 'Reservations[0].Instances[0].InstanceId'
+
+2.1.8 Stop Processor instance
+
+aws ec2 stop-instances --instance-ids [instance-id]
+
+2.1.9 Check status of stop action
+
+aws ec2 describe-instance-status --instance-id [instance-id]
+
+2.1.10 Create first snapshot
+
+aws ec2 create-snapshot --volume-id [volume-id]
+
+2.1.11 Report on snapshot status
+
+aws ec2 describe-snapshots --snapshot-id [snapshot-id]
+
+2.1.12 Restart Processor instance
+
+aws ec2 start-instances --instance-ids [instance-id]
+
+2.1.13 Check status of start action
+
+aws ec2 describe-instance-status --instance-id [instance-id]
+
+==================================================================================================================
+2.2 Schedule Creation of Subsequent Snapshots
+==================================================================================================================
+
+2.2.1 Create the cron task description
+
+echo "* * * * *  aws ec2 create-snapshot --volume-id [volume-id] 2>&1 >> /tmp/cronlog" > cronjob
+
+2.2.2 Schedule the cron task
+
+crontab cronjob
+
+2.2.3 Verify that snapshots are being created
+
+aws ec2 describe-snapshots --filters "Name=volume-id,Values=[volume-id]"
+
+
+
+==================================================================================================================
+2.3 Retain Only Last Two Snapshots 
+==================================================================================================================
+
+2.3.1 Remove cron entry
+
+crontab -r
+
+2.3.2 Discover your current region
+
+cat /home/ec2-user/.aws/config
+
+2.3.4 Set your current region as an environment variable
+
+export AWS_DEFAULT_REGION=[region]
+
+2.3.5 Examine snapshotter.py
+
+more snapshotter.py
+
+2.3.6 Verify the current number of snapshots for the volume
+
+aws ec2 describe-snapshots --filters "Name=volume-id,Values=[volume-id]" --query 'Snapshots[*].SnapshotId'
+
+2.3.7 Execute snapshotter.py
+
+python snapshotter.py
+
+2.3.8 Re-examine the current number of snapshots for the volume
+
+aws ec2 describe-snapshots --filters "Name=volume-id,Values=[volume-id]" --query 'Snapshots[*].SnapshotId'
+
+
+++++3. Moving Log Files to Amazon S3++++
+
+
+==================================================================================================================
+3.2 Move a Log File into Amazon S3
+==================================================================================================================
+
+3.2.1 Download loggen.sh
+
+wget https://us-west-2-aws-training.s3.amazonaws.com/awsu-ilt/sys-ops/v2.1/lab-3-storage-linux/static/loggen.sh
+
+3.2.2 Change permission on loggen.sh
+
+chmod 740 loggen.sh
+
+3.2.3 Run loggen.sh in the background
+
+./loggen.sh &
+
+3.2.4 Verify end of timestamp file
+
+tail timestamp.log
+
+3.2.5 Move file into Amazon S3
+
+aws s3 mv timestamp.log s3://[s3-bucket-name]/logfiles/timestamp-`date +"%m-%d-%Y-%H.%M.%S"`.log
+
+3.2.6 Move file again
+
+aws s3 mv timestamp.log s3://[s3-bucket-name]/logfiles/timestamp-`date +"%m-%d-%Y-%H.%M.%S"`.log
+
+3.2.7 List the contents of your Amazon S3 bucket
+
+aws s3 ls s3://[s3-bucket-name]
+
+3.2.8 List all objects containing the /logfiles/ prefix
+
+aws s3 ls s3://[s3-bucket-name]/logfiles/
+
+3.2.9 Move oldest file to /logfiles/archive/ prefix
+
+aws s3 mv s3://[s3-bucket-name]/logfiles/[file-name] s3://[s3-bucket-name]/logfiles/archive/[file-name]
+
+3.2.10 Verify move
+
+aws s3 ls s3://[s3-bucket-name]/logfiles/
+
+
+
+++++4. Challenge Solution - Synchronize Folder with Amazon S3++++
+
+==================================================================================================================
+4.1 Download and Unzip Sample Files
+==================================================================================================================
+
+4.1.1 Download files
+
+wget https://us-west-2-aws-training.s3.amazonaws.com/awsu-ilt/sys-ops/v2.1/lab-3-storage-linux/static/files.zip 
+
+4.1.2 Unzip the directory
+
+unzip files.zip
+
+==================================================================================================================
+4.2 Synchronize Files
+==================================================================================================================
+
+4.2.1 Set versioning on bucket 
+
+aws s3api put-bucket-versioning --bucket [s3-bucket-name] --versioning-configuration Status=Enabled
+
+4.2.2 Synchronize files
+
+aws s3 sync files s3://[s3-bucket-name]/files/
+
+4.2.3 Confirm your files on Amazon S3
+
+aws s3 ls s3://[s3-bucket-name]/files/
+
+4.2.4 Delete file1.txt
+
+rm files/file1.txt
+
+4.2.5 Synchronize, requesting deletion of files no longer in the source directory
+
+aws s3 sync files s3://[s3-bucket-name]/files/ --delete
+
+4.2.6 Verify that the item was deleted in Amazon S3
+
+aws s3 ls s3://[s3-bucket-name]/files/
+
+4.2.7 Find past versions of file1.txt
+
+aws s3api list-object-versions --bucket [s3-bucket-name] --prefix files/file1.txt
+ 
+4.2.8 Restore previous version of file to local file system
+
+aws s3api get-object --bucket [s3-bucket-name] --key files/file1.txt --version-id [version-id] files/file1.txt
+
+4.2.9 Verify that the file has been restored locally 
+
+ls files
+
+4.2.10 Re-sync the folder to Amazon S3
+
+aws s3 sync files s3://[s3-bucket-name]/files/
+
+4.2.11 Verify that the file has been restored to the bucket
+
+aws s3 ls s3://[s3-bucket-name]/files/
+
+
+

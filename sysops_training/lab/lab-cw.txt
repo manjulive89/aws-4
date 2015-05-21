@@ -1,0 +1,12 @@
+#!/bin/bash
+yum update -y --security
+yum -y install httpd php
+chkconfig httpd on
+/etc/init.d/httpd start
+cd /var/www/html
+
+wget https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py
+chmod +x ./awslogs-agent-setup.py
+
+./awslogs-agent-setup.py -n -r us-west-2 -c s3://s3-bucket-woody/cloudwatch-logs-agent-config.txt
+
