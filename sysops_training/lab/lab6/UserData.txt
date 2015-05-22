@@ -1,0 +1,12 @@
+#!/bin/bash
+yum update -y --security
+yum -y install httpd php stress
+chkconfig httpd on
+/etc/init.d/httpd start
+cd /var/www/html
+wget https://us-west-2-aws-training.s3.amazonaws.com/awsu-ilt/sys-ops/v2.1/lab-6-scaling-linux/static/ec2-stress.zip
+unzip ec2-stress.zip
+echo 'UserData has been successfully executed.' >> /home/ec2-user/result
+find -wholename /root/.*history -wholename /home/*/.*history -exec rm -f {} \;
+find / -name 'authorized_keys' -exec rm -f {} \;
+rm -rf /var/lib/cloud/data/scripts/*
